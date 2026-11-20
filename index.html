@@ -1,759 +1,1449 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Farkle</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; background: linear-gradient(135deg, #dff4ff, #fff7c7); color: #263453; }
-    main { position: relative; width: 100%; min-height: 100vh; min-height: 100dvh; overflow: hidden; }
-    #scene-container { position: absolute; inset: 0; }
-    #scene-container canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-    .overlay { position: absolute; z-index: 1; pointer-events: none; }
-    .panel { background: rgba(255, 255, 255, 0.92); border: 1px solid #e8def3; border-radius: 18px; box-shadow: 0 6px 24px rgba(67, 87, 118, 0.14); padding: 12px 18px; }
-    .center { top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: auto; min-width: 250px; }
-    .center h1, .center h2 { margin: 0 0 14px; }
-    #top-bar { top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
-    .player { padding: 7px 12px; border: 2px solid transparent; border-radius: 12px; }
-    .player.active { border-color: #9c87dc; background: #eee8ff; }
-    .target { padding: 0 8px; }
-    #bottom-bar { bottom: 12px; left: 50%; transform: translateX(-50%); width: min(94%, 660px); text-align: center; }
-    #status { min-height: 1.4em; margin: 6px 0; }
-    .buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
-    button, select { font: inherit; border: 1px solid #b9aad6; border-radius: 12px; padding: 9px 14px; background: #e9e3ff; color: #263453; }
-    button { cursor: pointer; pointer-events: auto; }
-    button:disabled { cursor: not-allowed; opacity: 0.5; }
-    #flash { top: 46%; left: 50%; transform: translate(-50%, -50%); font-size: clamp(2.5rem, 8vw, 5rem); font-weight: 900; color: #ad4b55; text-shadow: 0 2px white, 0 4px 14px white; opacity: 0; white-space: nowrap; }
-    #flash.show { animation: flash 1.2s ease-in-out; }
-    @keyframes flash { 0%, 100% { opacity: 0; } 15%, 70% { opacity: 1; } }
-    @media (max-width: 480px) { #top-bar { gap: 2px; padding: 8px; font-size: 0.85rem; } .player { padding: 5px; } .target { padding: 0 4px; } #bottom-bar { padding: 8px; font-size: 0.9rem; } button { padding: 8px; } }
-    [hidden] { display: none !important; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Farkle</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='5' y='5' width='54' height='54' rx='8' fill='%23e8dcc0'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%2341352a'/%3E%3C/svg%3E">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #171512; color: #e4d7bc; }
+    main { position: relative; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; }
+    #scene-container { position: absolute; inset: 0; }
+    main.playing #scene-container { top: var(--top-space, 100px); bottom: var(--bottom-space, 150px); }
+    #scene-container canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .overlay { position: absolute; z-index: 1; pointer-events: none; }
+    .panel { background: rgba(38, 29, 23, 0.94); border: 1px solid #74634b; border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); padding: 12px 18px; }
+    .center { top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: auto; min-width: 250px; max-height: calc(100dvh - 16px); overflow: auto; }
+    h1, h2, h3 { font-family: Georgia, serif; }
+    .center h1, .center h2 { margin: 0 0 14px; }
+    #top-bar { top: 4px; left: 4px; display: flex; align-items: center; justify-content: center; gap: 6px; width: min(calc(100% - 115px), 670px); padding: 5px; }
+    .player { flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px; text-align: center; min-width: 0; }
+    .player strong, .player small { display: block; }
+    .player small { color: #bfb091; font-size: 0.72rem; }
+    .player.active { border-color: #a48b60; background: #4a3a2a; }
+    .target { padding: 0 8px; }
+    #bottom-bar { bottom: 4px; left: 50%; transform: translateX(-50%); width: min(98%, 670px); text-align: center; padding: 5px; pointer-events: auto; }
+    .scores { display: flex; justify-content: space-around; gap: 4px; font-size: 0.75rem; }
+    .scores strong { display: block; font-size: 1rem; }
+    #status { min-height: 1.2em; margin: 3px 0; font-size: 0.85rem; }
+    .buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; }
+    button, select { font: inherit; border: 1px solid #887455; border-radius: 8px; padding: 9px 14px; background: #493a2b; color: #eee1c5; }
+    button { cursor: pointer; pointer-events: auto; }
+    button:active:not(:disabled) { transform: translateY(1px); background: #655039; }
+    #roll-button { background: #6b5435; }
+    button:disabled { cursor: not-allowed; opacity: 0.5; }
+    #flash { position: static; min-height: 1.2em; font-size: 0.85rem; color: #dbc39c; opacity: 0; }
+    #flash.show { animation: flash 1.5s ease-in-out; }
+    @keyframes flash { 0%, 100% { opacity: 0; } 20%, 75% { opacity: 1; } }
+    #turn-banner { font-size: 0.72rem; color: #d3b88a; }
+    #tools { position: absolute; top: 4px; right: 4px; z-index: 3; pointer-events: auto; font-size: 0.75rem; }
+    #tools details { background: #281e18; border: 1px solid #74634b; padding: 4px; max-width: min(270px, 85vw); max-height: 70vh; overflow: auto; }
+    #tools summary { cursor: pointer; }
+    #tools input { width: 80px; vertical-align: middle; }
+    #final-scores { margin: 8px 0 14px; }
+    @media (max-width: 600px), (max-height: 500px) { #top-bar { font-size: 0.75rem; } .player { padding: 2px; } .target { padding: 0 3px; } #bottom-bar { font-size: 0.75rem; } button, select { padding: 5px 7px; } .scores strong { font-size: 0.85rem; } #status { font-size: 0.75rem; } #flash { font-size: 0.75rem; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; scroll-behavior: auto !important; transition-duration: 0.001ms !important; } #flash.show { opacity: 1; } }
+    [hidden] { display: none !important; }
+  </style>
 </head>
 <body>
-  <main>
-    <section id="scene-container" aria-label="3D dice table"></section>
-    <section id="start-screen" class="overlay panel center">
-      <h1>Farkle</h1>
-      <label for="target">Target score:</label>
-      <select id="target">
-        <option value="1500" selected>1500</option>
-        <option value="4000">4000</option>
-      </select>
-      <button id="start-button" type="button">Start</button>
-    </section>
-    <section id="top-bar" class="overlay panel" hidden>
-      <div id="player-0" class="player"></div>
-      <div class="target">Target: <strong id="target-score"></strong></div>
-      <div id="player-1" class="player"></div>
-    </section>
-    <section id="bottom-bar" class="overlay panel" hidden>
-      <div>Turn score: <strong id="turn-score">0</strong> &nbsp; Selection score: <strong id="selection-score">0</strong></div>
-      <p id="status" role="status" aria-live="polite"></p>
-      <div class="buttons">
-        <button id="roll-button" type="button">Roll</button>
-        <button id="continue-button" type="button">Score &amp; Continue</button>
-        <button id="bank-button" type="button">Bank</button>
-        <button id="new-game-button" type="button">New Game</button>
-      </div>
-    </section>
+  <main id="game">
+    <section id="scene-container" aria-label="3D dice table"></section>
+    <section id="start-screen" class="overlay panel center">
+      <h1>Farkle</h1>
+      <label for="target">Target score:</label>
+      <select id="target">
+        <option value="1500" selected>1500</option>
+        <option value="4000">4000</option>
+      </select>
+      <button id="start-button" type="button">Start</button>
+    </section>
+    <section id="top-bar" class="overlay panel" hidden>
+      <div id="player-0" class="player"></div>
+      <div class="target">Target: <strong id="target-score"></strong></div>
+      <div id="player-1" class="player"></div>
+    </section>
+    <section id="bottom-bar" class="overlay panel" hidden>
+      <div class="scores">
+        <div>TOTAL SCORE <strong id="total-score">0</strong></div>
+        <div>TURN SCORE <strong id="turn-score">0</strong></div>
+        <div>SELECTION SCORE <strong id="selection-score">0</strong></div>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="flash" aria-live="polite"></div>
+      <div class="buttons">
+        <button id="roll-button" type="button" aria-label="Roll dice">Roll</button>
+        <button id="continue-button" type="button" aria-label="Score selection and continue">Score &amp; Continue</button>
+        <button id="bank-button" type="button" aria-label="Bank turn score">Bank</button>
+        <button id="new-game-button" type="button" aria-label="Start a new game">New Game</button>
+      </div>
+      <div id="turn-banner" aria-live="polite"></div>
+    </section>
+    <aside id="tools">
+      <details>
+        <summary>Rules &amp; sound</summary>
+        <p>1 = 100; 5 = 50. Three of a kind: 1 = 1000, other faces = face × 100. Four, five, six of a kind: ×2, ×4, ×8. Straights: 1–5 = 500, 2–6 = 750, 1–6 = 1500.</p>
+        <p>Select scoring dice, then continue or bank. A bust loses the turn score. Scoring all six gives Hot Dice.</p>
+        <button id="mute-button" type="button" aria-label="Enable sound" aria-pressed="false">Sound: Off</button>
+        <label for="volume">Volume</label>
+        <input id="volume" type="range" min="0" max="1" step="0.05" value="0.4">
+      </details>
+    </aside>
+    <section id="end-screen" class="overlay panel center" hidden>
+      <h2 id="winner"></h2>
+      <p id="final-scores"></p>
+      <button id="play-again-button" type="button">New Game</button>
+    </section>
+  </main>
+  <script type="module">
+    import * as CANNON from "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js";
+    // Game rules and state: this section does not depend on the scene or UI.
+    function rollDice(n) {
+      return Array.from({ length: n }, () => Math.floor(Math.random() * 6) + 1);
+    }
 
-    <div id="flash" class="overlay" aria-hidden="true"></div>
-    <section id="end-screen" class="overlay panel center" hidden>
-      <h2 id="winner"></h2>
-      <button id="play-again-button" type="button">Play Again</button>
-    </section>
-  </main>
-  <script>
-    function rollDice(n) {
-      return Array.from({ length: n }, () => Math.floor(Math.random() * 6) + 1);
-    }
+    function scoreSelection(diceArray) {
+      if (!Array.isArray(diceArray) || diceArray.length === 0) {
+        return { valid: false, score: 0 };
+      }
 
-    function scoreSelection(diceArray) {
-      if (!Array.isArray(diceArray) || diceArray.length === 0) {
-        return { valid: false, score: 0 };
-      }
+      const counts = [0, 0, 0, 0, 0, 0, 0];
+      for (const die of diceArray) {
+        if (!Number.isInteger(die) || die < 1 || die > 6) {
+          return { valid: false, score: 0 };
+        }
+        counts[die]++;
+      }
 
-      const counts = [0, 0, 0, 0, 0, 0, 0];
-      for (const die of diceArray) {
-        if (!Number.isInteger(die) || die < 1 || die > 6) {
-          return { valid: false, score: 0 };
-        }
-        counts[die]++;
-      }
+      let score = 0;
 
-      let score = 0;
+      if ([1, 2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
+        score += 1500;
+        for (let die = 1; die <= 6; die++) {
+          counts[die]--;
+        }
+      } else if ([1, 2, 3, 4, 5].every((die) => counts[die] >= 1)) {
+        score += 500;
+        for (let die = 1; die <= 5; die++) {
+          counts[die]--;
+        }
+      } else if ([2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
+        score += 750;
+        for (let die = 2; die <= 6; die++) {
+          counts[die]--;
+        }
+      }
 
-      if ([1, 2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
-        score += 1500;
-        for (let die = 1; die <= 6; die++) {
-          counts[die]--;
-        }
-      } else if ([1, 2, 3, 4, 5].every((die) => counts[die] >= 1)) {
-        score += 500;
-        for (let die = 1; die <= 5; die++) {
-          counts[die]--;
-        }
-      } else if ([2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
-        score += 750;
-        for (let die = 2; die <= 6; die++) {
-          counts[die]--;
-        }
-      }
+      const threeKindValues = {
+        1: 1000,
+        2: 200,
+        3: 300,
+        4: 400,
+        5: 500,
+        6: 600
+      };
+      const threeKindMultipliers = {
+        3: 1,
+        4: 2,
+        5: 4,
+        6: 8
+      };
 
-      const threeKindValues = {
-        1: 1000,
-        2: 200,
-        3: 300,
-        4: 400,
-        5: 500,
-        6: 600
-      };
-      const threeKindMultipliers = {
-        3: 1,
-        4: 2,
-        5: 4,
-        6: 8
-      };
+      for (let die = 1; die <= 6; die++) {
+        if (counts[die] >= 3) {
+          const multiplier = threeKindMultipliers[counts[die]];
+          if (multiplier === undefined) {
+            return { valid: false, score: 0 };
+          }
+          score += threeKindValues[die] * multiplier;
+          counts[die] = 0;
+        }
+      }
 
-      for (let die = 1; die <= 6; die++) {
-        if (counts[die] >= 3) {
-          const multiplier = threeKindMultipliers[counts[die]];
-          if (multiplier === undefined) {
-            return { valid: false, score: 0 };
-          }
-          score += threeKindValues[die] * multiplier;
-          counts[die] = 0;
-        }
-      }
+      score += counts[1] * 100;
+      score += counts[5] * 50;
+      counts[1] = 0;
+      counts[5] = 0;
 
-      score += counts[1] * 100;
-      score += counts[5] * 50;
-      counts[1] = 0;
-      counts[5] = 0;
+      const hasUnscoredDice = counts.slice(1).some((count) => count > 0);
+      if (hasUnscoredDice) {
+        return { valid: false, score: 0 };
+      }
 
-      const hasUnscoredDice = counts.slice(1).some((count) => count > 0);
-      if (hasUnscoredDice) {
-        return { valid: false, score: 0 };
-      }
+      return { valid: true, score };
+    }
+    function hasAnyScoring(diceArray) {
+      if (!Array.isArray(diceArray) || diceArray.length === 0) {
+        return false;
+      }
 
-      return { valid: true, score };
-    }
-    function hasAnyScoring(diceArray) {
-      if (!Array.isArray(diceArray) || diceArray.length === 0) {
-        return false;
-      }
+      const counts = [0, 0, 0, 0, 0, 0, 0];
+      for (const die of diceArray) {
+        if (!Number.isInteger(die) || die < 1 || die > 6) {
+          continue;
+        }
+        counts[die]++;
+      }
 
-      const counts = [0, 0, 0, 0, 0, 0, 0];
-      for (const die of diceArray) {
-        if (!Number.isInteger(die) || die < 1 || die > 6) {
-          continue;
-        }
-        counts[die]++;
-      }
+      if (diceArray.some((die) => die === 1 || die === 5)) {
+        return true;
+      }
 
-      if (diceArray.some((die) => die === 1 || die === 5)) {
-        return true;
-      }
+      if ([1, 2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
+        return true;
+      }
+      if ([1, 2, 3, 4, 5].every((die) => counts[die] >= 1)) {
+        return true;
+      }
+      if ([2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
+        return true;
+      }
 
-      if ([1, 2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
-        return true;
-      }
-      if ([1, 2, 3, 4, 5].every((die) => counts[die] >= 1)) {
-        return true;
-      }
-      if ([2, 3, 4, 5, 6].every((die) => counts[die] >= 1)) {
-        return true;
-      }
+      return counts.slice(1).some((count) => count >= 3);
+    }
 
-      return counts.slice(1).some((count) => count >= 3);
-    }
+    function createGameState() {
+      return {
+        target: 1500,
+        players: [{ name: "Player 1", total: 0 }, { name: "Computer", total: 0 }],
+        current: 0,
+        turnScore: 0,
+        dice: [],
+        heldDice: [],
+        selected: [],
+        phase: "start",
+        animating: false
+      };
+    }
 
-    function runTests() {
-      const cases = [
-        { name: "[1]", dice: [1], valid: true, score: 100 },
-        { name: "[5]", dice: [5], valid: true, score: 50 },
-        { name: "[1,5]", dice: [1, 5], valid: true, score: 150 },
-        { name: "[2]", dice: [2], valid: false, score: 0 },
-        { name: "[2,2,2]", dice: [2, 2, 2], valid: true, score: 200 },
-        { name: "[1,1,1]", dice: [1, 1, 1], valid: true, score: 1000 },
-        { name: "[1,1,1,1]", dice: [1, 1, 1, 1], valid: true, score: 2000 },
-        { name: "[4,4,4,4]", dice: [4, 4, 4, 4], valid: true, score: 800 },
-        { name: "[4,4,4,4,4]", dice: [4, 4, 4, 4, 4], valid: true, score: 1600 },
-        { name: "[6,6,6,6,6,6]", dice: [6, 6, 6, 6, 6, 6], valid: true, score: 4800 },
-        { name: "[1,1,1,1,1,1]", dice: [1, 1, 1, 1, 1, 1], valid: true, score: 8000 },
-        { name: "[1,2,3,4,5]", dice: [1, 2, 3, 4, 5], valid: true, score: 500 },
-        { name: "[2,3,4,5,6]", dice: [2, 3, 4, 5, 6], valid: true, score: 750 },
-        { name: "[1,2,3,4,5,6]", dice: [1, 2, 3, 4, 5, 6], valid: true, score: 1500 },
-        { name: "[2,2,3]", dice: [2, 2, 3], valid: false, score: 0 },
-        { name: "[1,4,4,4,5]", dice: [1, 4, 4, 4, 5], valid: true, score: 550 },
-        { name: "[2,4]", dice: [2, 4], valid: false, score: 0 },
-        { name: "hasAnyScoring([2,4])", dice: [2, 4], expected: false, hasAny: true },
-        { name: "hasAnyScoring([2,3,4,6])", dice: [2, 3, 4, 6], expected: false, hasAny: true },
-        { name: "hasAnyScoring([2,2,2])", dice: [2, 2, 2], expected: true, hasAny: true }
-      ];
+    function resetGameDice(game) {
+      game.dice = Array.from({ length: 6 }, (_, id) => ({ id, value: null }));
+      game.heldDice = [];
+      game.selected = [];
+    }
 
-      for (const test of cases) {
-        let passed;
-        if (test.hasAny) {
-          passed = hasAnyScoring(test.dice) === test.expected;
-        } else {
-          const result = scoreSelection(test.dice);
-          passed = result.valid === test.valid && result.score === test.score;
-        }
-        console.log(`${passed ? "PASS" : "FAIL"} ${test.name}`);
-      }
-    }
+    function beginGame(game, target) {
+      game.target = target;
+      game.players.forEach((player) => { player.total = 0; });
+      game.current = 0;
+    }
 
-    let threeScene;
-    let threeCamera;
-    let threeRenderer;
-    let threeDice = [];
+    function beginTurn(game) {
+      game.turnScore = 0;
+      resetGameDice(game);
+      game.phase = "ready";
+    }
 
-    function createFaceTexture(value) {
-      const canvas = document.createElement("canvas");
-      canvas.width = 128;
-      canvas.height = 128;
-    const context = canvas.getContext("2d");
+    function beginRoll(game) {
+      if (game.animating || game.phase !== "ready") return null;
+      game.animating = true;
+      game.phase = "rolling";
+      const values = rollDice(game.dice.length);
+      game.dice.forEach((die, index) => { die.value = values[index]; });
+      return values;
+    }
 
-      context.fillStyle = "#fffdf4";
-      context.fillRect(0, 0, 128, 128);
-      context.strokeStyle = "#333333";
-      context.lineWidth = 3;
-      context.strokeRect(1.5, 1.5, 125, 125);
+    function finishRoll(game, values) {
+      if (!hasAnyScoring(values)) {
+        game.turnScore = 0;
+        game.phase = "bust";
+        return false;
+      }
+      game.phase = "select";
+      return true;
+    }
 
-      const pipColor = value === 1 ? "#a81717" : "#193a72";
-      context.fillStyle = pipColor;
+    function finishAnimation(game) {
+      game.animating = false;
+    }
 
-      const positions = {
-        1: [[64, 64]],
-        2: [[36, 36], [92, 92]],
-        3: [[36, 36], [64, 64], [92, 92]],
-        4: [[36, 36], [92, 36], [36, 92], [92, 92]],
-        5: [[36, 36], [92, 36], [64, 64], [36, 92], [92, 92]],
-        6: [[36, 28], [92, 28], [36, 64], [92, 64], [36, 100], [92, 100]]
-      };
+    function selectDie(game, index) {
+      if (game.animating || game.phase !== "select" || index < 0 || index >= game.dice.length) return false;
+      const selectedIndex = game.selected.indexOf(index);
+      if (selectedIndex === -1) {
+        game.selected.push(index);
+      } else {
+        game.selected.splice(selectedIndex, 1);
+      }
+      return true;
+    }
 
-      positions[value].forEach(([x, y]) => {
-        context.beginPath();
-        context.arc(x, y, 11, 0, Math.PI * 2);
-        context.fill();
-      });
+    function selectionScore(game) {
+      return scoreSelection(game.selected.map((index) => game.dice[index].value));
+    }
 
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.needsUpdate = true;
-      return texture;
-    }
+    function scoreAndContinue(game) {
+      if (game.animating || game.phase !== "select") return null;
+      const result = selectionScore(game);
+      if (!result.valid || result.score <= 0) return null;
+      const chosen = game.selected.map((index) => game.dice[index]);
+      const heldCount = game.heldDice.length;
+      game.animating = true;
+      game.phase = "moving";
+      game.turnScore += result.score;
+      game.dice = game.dice.filter((die) => !chosen.includes(die));
+      game.heldDice.push(...chosen);
+      game.selected = [];
+      return { chosen, heldCount };
+    }
 
-    function createDie() {
-      const mapping = [3, 4, 1, 6, 2, 5];
-      const materials = mapping.map((value) =>
-        new THREE.MeshStandardMaterial({
-          map: createFaceTexture(value),
-          roughness: 0.7,
-          metalness: 0
-        })
-      );
+    function finishMoving(game) {
+      const hot = game.dice.length === 0;
+      game.phase = hot ? "hot" : "ready";
+      return hot;
+    }
 
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), materials);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+    function finishHotDice(game) {
+      resetGameDice(game);
+      game.phase = "ready";
+    }
 
-      const die = new THREE.Group();
-      die.add(mesh);
-      die.userData.mesh = mesh;
-      die.userData.value = 1;
-      setDieValueInstant(die, 1);
-      return die;
-    }
+    function bankSelection(game) {
+      if (game.animating || game.phase !== "select") return null;
+      const result = selectionScore(game);
+      if (!result.valid || result.score <= 0) return null;
+      game.turnScore += result.score;
+      game.players[game.current].total += game.turnScore;
+      const won = game.players[game.current].total >= game.target;
+      if (won) game.phase = "won";
+      return { won };
+    }
 
-    function setDieValueInstant(die, value) {
-      const mesh = die.userData.mesh;
-      const rotations = {
-        1: { x: 0, z: 0 },
-        6: { x: Math.PI, z: 0 },
-        2: { x: -Math.PI / 2, z: 0 },
-        5: { x: Math.PI / 2, z: 0 },
-        3: { x: 0, z: Math.PI / 2 },
-        4: { x: 0, z: -Math.PI / 2 }
-      };
-      mesh.rotation.set(rotations[value].x, 0, rotations[value].z);
-      die.rotation.y = Math.random() * Math.PI * 2;
-      die.userData.value = value;
-    }
+    function switchTurn(game) {
+      game.current = (game.current + 1) % game.players.length;
+      beginTurn(game);
+    }
 
-    function animateRoll(die, value, targetPosition) {
-      const duration = 900;
-      const start = die.position.clone();
-      const target = new THREE.Vector3(targetPosition.x, targetPosition.y, targetPosition.z);
-      const mesh = die.userData.mesh;
-      const startRotation = {
-        x: mesh.rotation.x,
-        y: 0,
-        z: mesh.rotation.z
-      };
-      const spin = {
-        x: (Math.random() > 0.5 ? 1 : -1) * (Math.PI * 4 + Math.random() * Math.PI * 4),
-        z: (Math.random() > 0.5 ? 1 : -1) * (Math.PI * 4 + Math.random() * Math.PI * 4),
-        y: Math.random() * Math.PI * 2
-      };
-      const startTime = performance.now();
+    function returnToStart(game) {
+      game.phase = "start";
+      game.turnScore = 0;
+      game.selected = [];
+    }
 
-      return new Promise((resolve) => {
-        function frame(now) {
-          const elapsed = Math.min(1, (now - startTime) / duration);
-          const eased = elapsed < 0.5
-            ? 2 * elapsed * elapsed
-            : 1 - Math.pow(-2 * elapsed + 2, 2) / 2;
+    const state = createGameState();
 
-          die.position.x = start.x + (target.x - start.x) * eased;
-        die.position.z = start.z + (target.z - start.z) * eased;
-          die.position.y = target.y + Math.sin(elapsed * Math.PI) * 2.5;
-          mesh.rotation.x = startRotation.x + spin.x * elapsed;
-          mesh.rotation.z = startRotation.z + spin.z * elapsed;
-          die.rotation.y = spin.y * elapsed;
+    // Presentation and computer player.
+    let threeScene;
+    let threeCamera;
+    let threeRenderer;
+    let threeDice = [];
 
-          if (elapsed < 1) {
-            requestAnimationFrame(frame);
-          } else {
-            die.position.copy(target);
-            setDieValueInstant(die, value);
-            resolve(die);
-          }
-        }
-        requestAnimationFrame(frame);
-      });
-    }
+    function createFaceTexture(value, bump) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 256;
+      const context = canvas.getContext("2d");
+      context.fillStyle = bump ? "#d9d9d9" : "#ffffff";
+      context.fillRect(0, 0, 256, 256);
 
-    function getSlotPosition(index, total) {
-      const spacing = 1.35;
-      return {
-        x: (index - (total - 1) / 2) * spacing,
-        y: 0.5,
-        z: 0
-      };
-    }
+      const positions = {
+        1: [[128, 128]],
+        2: [[72, 72], [184, 184]],
+        3: [[72, 72], [128, 128], [184, 184]],
+        4: [[72, 72], [184, 72], [72, 184], [184, 184]],
+        5: [[72, 72], [184, 72], [128, 128], [72, 184], [184, 184]],
+        6: [[72, 56], [184, 56], [72, 128], [184, 128], [72, 200], [184, 200]]
+      };
 
-    function setupThreeScene() {
-      const container = document.getElementById("scene-container");
-      threeScene = new THREE.Scene();
-      threeCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-      threeCamera.position.set(0, 7.5, 8.5);
-      threeCamera.lookAt(0, 0, 0);
+      positions[value].forEach(([x, y]) => {
+        const gradient = context.createRadialGradient(x - 3, y - 4, 1, x, y, 22);
+        if (bump) {
+          gradient.addColorStop(0, "#333333");
+          gradient.addColorStop(0.65, "#555555");
+          gradient.addColorStop(1, "#d9d9d9");
+        } else {
+          gradient.addColorStop(0, "#211b16");
+          gradient.addColorStop(0.68, "#41352a");
+          gradient.addColorStop(1, "#a89a80");
+        }
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.arc(x, y, 22, 0, Math.PI * 2);
+        context.fill();
+      });
 
-      threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      threeRenderer.shadowMap.enabled = true;
-      threeRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      container.appendChild(threeRenderer.domElement);
+      const texture = new THREE.CanvasTexture(canvas);
+      if (!bump) texture.encoding = THREE.sRGBEncoding;
+      return texture;
+    }
 
-      const hemisphere = new THREE.HemisphereLight("#dff4ff", "#d9b36c", 0.9);
-      threeScene.add(hemisphere);
+    function createRoundedDieGeometry() {
+      const geometry = new THREE.BoxGeometry(1, 1, 1, 12, 12, 12);
+      const positions = geometry.attributes.position;
+      const normals = geometry.attributes.normal;
+      const radius = 0.075;
+      const inner = 0.5 - radius;
+      const point = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      const normal = new THREE.Vector3();
+      for (let i = 0; i < positions.count; i++) {
+        point.fromBufferAttribute(positions, i);
+        center.set(
+          THREE.MathUtils.clamp(point.x, -inner, inner),
+          THREE.MathUtils.clamp(point.y, -inner, inner),
+          THREE.MathUtils.clamp(point.z, -inner, inner)
+        );
+        normal.subVectors(point, center).normalize();
+        point.copy(center).addScaledVector(normal, radius);
+        positions.setXYZ(i, point.x, point.y, point.z);
+        normals.setXYZ(i, normal.x, normal.y, normal.z);
+      }
+      positions.needsUpdate = true;
+      normals.needsUpdate = true;
+      geometry.computeBoundingSphere();
+      return geometry;
+    }
 
-      const directional = new THREE.DirectionalLight("#fff7df", 1.1);
-      directional.position.set(-5, 10, 6);
-      directional.castShadow = true;
-      directional.shadow.mapSize.width = 1024;
-      directional.shadow.mapSize.height = 1024;
-      directional.shadow.camera.left = -8;
-      directional.shadow.camera.right = 8;
-      directional.shadow.camera.top = 8;
-      directional.shadow.camera.bottom = -8;
-      directional.shadow.camera.near = 1;
-      directional.shadow.camera.far = 30;
-      threeScene.add(directional);
+    // BoxGeometry face order: +X=3, -X=4, +Y=1, -Y=6, +Z=2, -Z=5.
+    const dieFaces = [
+      { value: 3, normal: new THREE.Vector3(1, 0, 0) },
+      { value: 4, normal: new THREE.Vector3(-1, 0, 0) },
+      { value: 1, normal: new THREE.Vector3(0, 1, 0) },
+      { value: 6, normal: new THREE.Vector3(0, -1, 0) },
+      { value: 2, normal: new THREE.Vector3(0, 0, 1) },
+      { value: 5, normal: new THREE.Vector3(0, 0, -1) }
+    ];
+    const dieGeometry = createRoundedDieGeometry();
+    const hitboxGeometry = new THREE.BoxGeometry(1.18, 1.18, 1.18);
+    const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false });
+    const outlineGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.025, 1.025, 1.025));
+    const outlineMaterial = new THREE.LineBasicMaterial({ color: "#b69b6b" });
+    const faceTextures = dieFaces.map(({ value }) => ({
+      map: createFaceTexture(value, false),
+      bumpMap: createFaceTexture(value, true)
+    }));
 
-      const table = new THREE.Mesh(
-        new THREE.CircleGeometry(7, 64),
-        new THREE.MeshStandardMaterial({ color: "#e2b873", roughness: 0.85 })
-      );
-      table.rotation.x = -Math.PI / 2;
-      table.position.y = -0.08;
-      table.receiveShadow = true;
-      threeScene.add(table);
+    function createDie() {
+      const shade = 0.96 + Math.random() * 0.08;
+      const color = new THREE.Color("#e8dcc0").convertSRGBToLinear().multiplyScalar(shade);
+      const materials = faceTextures.map((textures) =>
+        new THREE.MeshStandardMaterial({
+          color,
+          map: textures.map,
+          bumpMap: textures.bumpMap,
+          bumpScale: 0.035,
+          roughness: 0.65,
+          metalness: 0
+        })
+      );
 
-      threeDice = Array.from({ length: 6 }, (_, index) => {
-        const die = createDie();
-        const position = getSlotPosition(index, 6);
-        die.position.set(position.x, position.y, position.z);
-        threeScene.add(die);
-        return die;
-      });
+      const mesh = new THREE.Mesh(dieGeometry, materials);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
 
-      function resize() {
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        threeRenderer.setSize(width, height, false);
-        threeCamera.aspect = width / height;
-        threeCamera.fov = THREE.MathUtils.radToDeg(
-          2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(45) / 2) *
-            Math.max(1, 1.35 / threeCamera.aspect))
-        );
-        threeCamera.updateProjectionMatrix();
-      }
+      const die = new THREE.Group();
+      die.add(mesh);
+      const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+      die.add(hitbox);
+      const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
+      outline.visible = false;
+      mesh.add(outline);
+      die.userData.mesh = mesh;
+      die.userData.hitbox = hitbox;
+      die.userData.outline = outline;
+      die.userData.selectionOffset = 0;
+      die.userData.selectionTarget = 0;
+      die.userData.value = 1;
+      setDieValueInstant(die, 1);
+      return die;
+    }
 
-      window.addEventListener("resize", resize);
-      resize();
+    function getTopFace(dieMesh) {
+      const mesh = dieMesh.userData.mesh || dieMesh;
+      const rotation = new THREE.Quaternion();
+      mesh.getWorldQuaternion(rotation);
+      let topValue = null;
+      let highest = -Infinity;
+      for (const face of dieFaces) {
+        const height = face.normal.clone().applyQuaternion(rotation).y;
+        if (height > highest) {
+          highest = height;
+          topValue = face.value;
+        }
+      }
+      return topValue;
+    }
 
-      function animate() {
-        requestAnimationFrame(animate);
-        threeRenderer.render(threeScene, threeCamera);
-      }
-      animate();
-    }
+    function setDieValueInstant(die, value) {
+      const mesh = die.userData.mesh;
+      const rotations = {
+        1: { x: 0, z: 0 },
+        6: { x: Math.PI, z: 0 },
+        2: { x: -Math.PI / 2, z: 0 },
+        5: { x: Math.PI / 2, z: 0 },
+        3: { x: 0, z: Math.PI / 2 },
+        4: { x: 0, z: -Math.PI / 2 }
+      };
+      mesh.rotation.set(rotations[value].x, 0, rotations[value].z);
+      die.rotation.y = Math.random() * Math.PI * 2;
+      die.userData.value = value;
+    }
 
-    const state = {
-      target: 1500,
-      players: [{ name: "Player 1", total: 0 }, { name: "Computer", total: 0 }],
-      current: 0,
-      turnScore: 0,
-      dice: [],
-      heldDice: [],
-      selected: [],
-      phase: "start",
-      animating: false,
-      aiMessage: "",
-      aiGeneration: 0,
-      aiTimer: null,
-      aiResolve: null
-    };
+    const physicsStep = 1 / 60;
+    const physicsFloor = -0.08;
+    let activeRoll = null;
+    let gameGeneration = 0;
+    let flashTimer = null;
+    let flashResolve = null;
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    let audioContext = null;
+    let soundEnabled = false;
+    let lastImpact = 0;
+    let bannerTimer = null;
+    let scoreAnimation = null;
+    let displayedTotals = [0, 0];
 
-    // Reset each physical die for a fresh set of six.
-    function resetDice() {
-      state.dice = threeDice.map((mesh, index) => {
-        mesh.visible = true;
-        mesh.scale.setScalar(1);
-        const slot = getSlotPosition(index, 6);
-        mesh.position.set(slot.x, slot.y, slot.z);
-        mesh.userData.mesh.material.forEach((material) => material.emissive.setHex(0));
-        setDieValueInstant(mesh, 1);
-        return { value: null, mesh };
-      });
-      state.heldDice = [];
-      state.selected = [];
-    }
+    function unlockAudio() {
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) {
+        return;
+      }
+      if (!audioContext) audioContext = new Audio();
+      if (audioContext.state === "suspended") audioContext.resume();
+    }
 
-    // Show a turn event while input remains blocked.
-    function showFlash(message) {
-      const flash = document.getElementById("flash");
-      flash.textContent = message;
-      flash.classList.remove("show");
-      void flash.offsetWidth;
-      flash.classList.add("show");
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          flash.classList.remove("show");
-          resolve();
-        }, 1200);
-      });
-    }
+    function playSound(kind, strength = 1) {
+      if (!soundEnabled || !audioContext || audioContext.state !== "running") return;
+      const settings = {
+        wood: [135, 0.075], dice: [330, 0.06], select: [440, 0.045],
+        button: [240, 0.04], bank: [520, 0.18], bust: [125, 0.22], hot: [650, 0.18]
+      };
+      const [frequency, duration] = settings[kind];
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const now = audioContext.currentTime;
+      const volume = Number(document.getElementById("volume").value);
+      oscillator.type = kind === "wood" || kind === "dice" ? "triangle" : "sine";
+      oscillator.frequency.setValueAtTime(frequency, now);
+      oscillator.frequency.exponentialRampToValueAtTime(Math.max(50, frequency * 0.55), now + duration);
+      gain.gain.setValueAtTime(Math.max(0.0001, 0.09 * volume * strength), now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(now);
+      oscillator.stop(now + duration);
+      oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+    }
 
-    // Begin a new game with the chosen target.
-    function startGame() {
-      if (state.animating) return;
-      cancelComputer();
-      state.target = Number(document.getElementById("target").value);
-      state.players.forEach((player) => { player.total = 0; });
-      state.current = 0;
-      startTurn();
-    }
+    function showTurnBanner() {
+      clearTimeout(bannerTimer);
+      const banner = document.getElementById("turn-banner");
+      banner.textContent = `${state.players[state.current].name}'s turn`;
+      bannerTimer = setTimeout(() => { banner.textContent = ""; bannerTimer = null; }, 900);
+    }
 
-    // Reset the turn without changing either player's total.
-    function startTurn() {
-      state.turnScore = 0;
-      resetDice();
-      state.phase = "ready";
-      updateUI();
-      if (state.current === 1) {
-        runComputerTurn(state.aiGeneration);
-      }
-    }
+    function animateBankTotal(index, from, to) {
+      if (scoreAnimation !== null) cancelAnimationFrame(scoreAnimation);
+      if (reducedMotion.matches) { displayedTotals[index] = to; return; }
+      const started = performance.now();
+      function frame(now) {
+        const progress = Math.min(1, (now - started) / 650);
+        displayedTotals[index] = Math.round(from + (to - from) * progress);
+        updateUI();
+        if (progress < 1) scoreAnimation = requestAnimationFrame(frame);
+        else scoreAnimation = null;
+      }
+      scoreAnimation = requestAnimationFrame(frame);
+    }
 
-    // Roll only the dice still available in this turn.
-    async function doRoll() {
-      if (state.animating || state.phase !== "ready") return;
-      state.animating = true;
-      state.phase = "rolling";
-      const values = rollDice(state.dice.length);
-      updateUI();
-      await Promise.all(state.dice.map((die, index) => {
-        die.value = values[index];
-        return animateRoll(die.mesh, die.value, getSlotPosition(index, state.dice.length));
-      }));
-      if (!hasAnyScoring(values)) {
-        await handleBust();
-      } else {
-        state.phase = "select";
-      }
-      state.animating = false;
-      updateUI();
-    }
+    function createPhysicsWorld() {
+      const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0) });
+      world.defaultContactMaterial.friction = 0.5;
+      world.defaultContactMaterial.restitution = 0.25;
+      function wall(x, y, z, hx, hy, hz) {
+        const body = new CANNON.Body({ mass: 0 });
+        body.addShape(new CANNON.Box(new CANNON.Vec3(hx, hy, hz)));
+        body.position.set(x, y, z);
+        world.addBody(body);
+      }
+      wall(0, physicsFloor - 0.5, 0, 5, 0.5, 3);
+      wall(-4.75, 3, 0, 0.25, 3.1, 3);
+      wall(4.75, 3, 0, 0.25, 3.1, 3);
+      wall(0, 3, -2.75, 5, 3.1, 0.25);
+      wall(0, 3, 2.75, 5, 3.1, 0.25);
+      wall(0, 6, 0, 5, 0.25, 3);
+      return world;
+    }
 
-    // Select only a die from the current roll.
-    function toggleDie(index) {
-    if (state.animating || state.phase !== "select" || index < 0 || index >= state.dice.length) return;
-      const die = state.dice[index];
-      const selectedIndex = state.selected.indexOf(index);
-      if (selectedIndex === -1) {
-        state.selected.push(index);
-        die.mesh.position.y = 0.9;
-        die.mesh.userData.mesh.material.forEach((material) => material.emissive.setHex(0x665500));
-      } else {
-        state.selected.splice(selectedIndex, 1);
-        die.mesh.position.y = 0.5;
-        die.mesh.userData.mesh.material.forEach((material) => material.emissive.setHex(0));
-      }
-      updateUI();
-    }
+    function createPhysicsRoll(dice, targets, withAudio = false) {
+      const world = createPhysicsWorld();
+      const entries = dice.map((die, index) => {
+        const body = new CANNON.Body({
+          mass: 1,
+          shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)),
+          linearDamping: 0.6,
+          angularDamping: 0.75
+        });
+        if (withAudio) {
+          body.addEventListener("collide", (event) => {
+            const now = performance.now();
+            if (now - lastImpact < 60) return;
+            const speed = Math.abs(event.contact.getImpactVelocityAlongNormal());
+            if (speed < 0.8) return;
+            lastImpact = now;
+            playSound(event.body.mass > 0 ? "dice" : "wood", Math.min(1, speed / 8));
+          });
+        }
+        body.position.set(-3.1 + (index % 2) * 1.2, 2.3 + Math.floor(index / 2) * 0.15,
+          (Math.floor(index / 2) - 1) * 1.25);
+        body.quaternion.setFromEuler(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+        world.addBody(body);
+        body.applyImpulse(new CANNON.Vec3(3.2 + Math.random() * 1.5, 1 + Math.random(),
+          -body.position.z * 0.6 + (Math.random() - 0.5)));
+        body.angularVelocity.set((Math.random() - 0.5) * 13, (Math.random() - 0.5) * 13,
+          (Math.random() - 0.5) * 13);
+        die.visible = true;
+        die.rotation.set(0, 0, 0);
+        die.scale.setScalar(1);
+        die.userData.selectionOffset = 0;
+        die.userData.selectionTarget = 0;
+        die.userData.outline.visible = false;
+        return { die, body, target: targets[index] };
+      });
+      return { world, entries, elapsed: 0, quiet: 0, correction: 0, correcting: false,
+        escaped: false, timedOut: false, mismatches: 0, done: false };
+    }
 
-    // Animate selected dice to the separate held row.
-    function moveToHeld(die, index) {
-      const mesh = die.mesh;
-      const start = mesh.position.clone();
-      const target = new THREE.Vector3(-2.5 + index, 0.35, 2.4);
-      const startTime = performance.now();
-      mesh.userData.mesh.material.forEach((material) => material.emissive.setHex(0));
-      return new Promise((resolve) => {
-        function frame(now) {
-          const progress = Math.min(1, (now - startTime) / 450);
-          const eased = 1 - Math.pow(1 - progress, 3);
-          mesh.position.lerpVectors(start, target, eased);
-          mesh.scale.setScalar(1 - 0.3 * eased);
-          if (progress < 1) {
-            requestAnimationFrame(frame);
-          } else {
-            resolve();
-          }
-        }
-        requestAnimationFrame(frame);
-      });
-    }
+    function updatePhysicsMeshes(roll) {
+      roll.entries.forEach(({ die, body }) => {
+        die.position.set(body.position.x, body.position.y, body.position.z);
+        die.userData.mesh.quaternion.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+      });
+    }
 
-    // Score the current selection and prepare the remaining dice.
-    async function continueTurn() {
-      if (state.animating || state.phase !== "select") return;
-      const chosen = state.selected.map((index) => state.dice[index]);
-      const result = scoreSelection(chosen.map((die) => die.value));
-      if (!result.valid || result.score <= 0) return;
-      state.animating = true;
-      state.phase = "moving";
-      state.turnScore += result.score;
-      const heldCount = state.heldDice.length;
-      state.dice = state.dice.filter((die) => !chosen.includes(die));
-      state.heldDice.push(...chosen);
-      state.selected = [];
-      updateUI();
-      await Promise.all(chosen.map((die, index) => moveToHeld(die, heldCount + index)));
-      if (state.dice.length === 0) {
-        await handleHotDice();
-      } else {
-        state.phase = "ready";
-      }
-      state.animating = false;
-      updateUI();
-    }
+    function beginCorrection(roll) {
+      roll.correcting = true;
+      updatePhysicsMeshes(roll);
+      roll.entries.forEach((entry) => {
+        const { body, die, target } = entry;
+        const start = die.userData.mesh.quaternion.clone();
+        const normal = dieFaces.find((face) => face.value === target).normal.clone().applyQuaternion(start);
+        const rotation = new THREE.Quaternion().setFromUnitVectors(normal, new THREE.Vector3(0, 1, 0));
+        entry.startRotation = start;
+        entry.endRotation = rotation.multiply(start).normalize();
+        entry.startY = body.position.y;
+        body.velocity.setZero();
+        body.angularVelocity.setZero();
+        body.type = CANNON.Body.KINEMATIC;
+      });
+    }
 
-    // Bank the current selection and finish the turn.
-    function bank() {
-      if (state.animating || state.phase !== "select") return;
-      const result = scoreSelection(state.selected.map((index) => state.dice[index].value));
-      if (!result.valid || result.score <= 0) return;
-      state.turnScore += result.score;
-      state.players[state.current].total += state.turnScore;
-      if (state.players[state.current].total >= state.target) {
-        cancelComputer();
-        state.phase = "won";
-        updateUI();
-      } else {
-        endTurn();
-      }
-    }
-    // Lose the unbanked score and pass the turn after the message.
-    async function handleBust() {
-      state.turnScore = 0;
-      state.phase = "bust";
-      updateUI();
-      await showFlash("BUST!");
-      endTurn();
-    }
+    function stepPhysicsRoll(roll) {
+      if (roll.done) return;
+      roll.elapsed += physicsStep;
+      if (!roll.correcting) {
+        roll.world.step(physicsStep);
+        let allQuiet = true;
+        roll.entries.forEach(({ body }) => {
+          for (const [vector, limit] of [[body.velocity, 12], [body.angularVelocity, 20]]) {
+            const speed = vector.length();
+            if (speed > limit) vector.scale(limit / speed, vector);
+          }
+          if (Math.abs(body.position.x) > 4.75 || Math.abs(body.position.z) > 2.75 ||
+              body.position.y < physicsFloor - 0.1 || body.position.y > 6) roll.escaped = true;
+          if (body.velocity.length() > 0.4 || body.angularVelocity.length() > 1.0) allQuiet = false;
+        });
+        roll.quiet = allQuiet ? roll.quiet + physicsStep : 0;
+        updatePhysicsMeshes(roll);
+        if (roll.quiet >= 0.3 || roll.elapsed >= 4.7) {
+          roll.timedOut = roll.quiet < 0.3;
+          beginCorrection(roll);
+        }
+      } else {
+        roll.correction = Math.min(1, roll.correction + physicsStep / 0.3);
+        const eased = roll.correction * roll.correction * (3 - 2 * roll.correction);
+        roll.entries.forEach((entry) => {
+          const q = entry.startRotation.clone().slerp(entry.endRotation, eased);
+          entry.die.userData.mesh.quaternion.copy(q);
+          const matrix = new THREE.Matrix4().makeRotationFromQuaternion(q).elements;
+          const halfHeight = 0.5 * (Math.abs(matrix[1]) + Math.abs(matrix[5]) + Math.abs(matrix[9]));
+          entry.die.position.y = Math.max(physicsFloor + halfHeight,
+            entry.startY + (physicsFloor + 0.5 - entry.startY) * eased);
+        });
+        if (roll.correction >= 1) {
+          roll.entries.forEach((entry) => {
+            const actual = getTopFace(entry.die);
+            if (actual !== entry.target) {
+              roll.mismatches++;
+              console.error(`Physics result mismatch: expected ${entry.target}, got ${actual}`);
+              entry.die.userData.mesh.quaternion.copy(entry.endRotation);
+              if (getTopFace(entry.die) !== entry.target) setDieValueInstant(entry.die, entry.target);
+            }
+          });
+          roll.done = true;
+        }
+      }
+    }
 
-    // Reuse all six dice without losing the accumulated turn score.
-    async function handleHotDice() {
-      state.phase = "hot";
-      updateUI();
-      await showFlash("HOT DICE!");
-      resetDice();
-      state.phase = "ready";
-    }
+    function rollDicePhysics(count, targets, dice) {
+      if (activeRoll) throw new Error("A physics roll is already running.");
+      if (count !== targets.length || count !== dice.length || count < 1 || count > 6) {
+        throw new Error("Invalid physics roll arguments.");
+      }
+      const roll = createPhysicsRoll(dice, targets, true);
+      activeRoll = roll;
+      roll.lastTime = performance.now();
+      roll.accumulator = 0;
+      return new Promise((resolve) => { roll.resolve = resolve; });
+    }
 
-    // Pass play to the other player.
-    function endTurn() {
-      cancelComputer();
-      state.current = (state.current + 1) % state.players.length;
-      startTurn();
-    }
+    function cancelPhysics() {
+      if (!activeRoll) return;
+      const roll = activeRoll;
+      activeRoll = null;
+      disposePhysicsRoll(roll);
+      roll.resolve(null);
+    }
 
-    // Cancel the computer's pending delay and invalidate its turn.
-    function cancelComputer() {
-      state.aiGeneration++;
-      if (state.aiTimer !== null) {
-        clearTimeout(state.aiTimer);
-        state.aiTimer = null;
-        const resolve = state.aiResolve;
-        state.aiResolve = null;
-        resolve(false);
-      }
-      state.aiMessage = "";
-    }
+    function disposePhysicsRoll(roll) {
+      // Cannon bodies are per-roll resources; shared Three.js assets survive a new game.
+      for (const body of roll.world.bodies.slice()) roll.world.removeBody(body);
+    }
 
-    function computerDelay(ms, generation) {
-      if (generation !== state.aiGeneration) return Promise.resolve(false);
-      return new Promise((resolve) => {
-        state.aiResolve = resolve;
-        state.aiTimer = setTimeout(() => {
-          state.aiTimer = null;
-          state.aiResolve = null;
-          resolve(generation === state.aiGeneration);
-        }, ms);
-      });
-    }
+    function getSlotPosition(index, total) {
+      const spacing = 1.35;
+      return {
+        x: (index - (total - 1) / 2) * spacing,
+        y: 0.5,
+        z: 0
+      };
+    }
 
-    async function waitForComputerAction(generation) {
-      while (generation === state.aiGeneration && state.current === 1 && state.animating) {
-        if (!await computerDelay(100, generation)) return false;
-      }
-      return generation === state.aiGeneration && state.current === 1 &&
-        state.phase !== "start" && state.phase !== "won";
-    }
+    function createWoodTextures() {
+      const size = 768;
+      const canvases = Array.from({ length: 3 }, () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        return canvas;
+      });
+      const contexts = canvases.map((canvas) => canvas.getContext("2d"));
+      const images = contexts.map((context) => context.createImageData(size, size));
+      let seed = 87219;
+      function random() {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+      }
 
-    // Compare every nonempty subset, preferring fewer dice on a score tie.
-    function bestComputerSelection() {
-      let best = null;
-      for (let mask = 1; mask < (1 << state.dice.length); mask++) {
-        const indices = [];
-        for (let index = 0; index < state.dice.length; index++) {
-          if (mask & (1 << index)) indices.push(index);
-        }
-        const result = scoreSelection(indices.map((index) => state.dice[index].value));
-        if (result.valid && (!best || result.score > best.score ||
-            (result.score === best.score && indices.length < best.indices.length))) {
-          best = { indices, score: result.score };
-        }
-      }
-      return best;
-    }
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const warp = Math.sin(x * 0.008) * 7 + Math.sin(x * 0.025 + y * 0.007) * 2;
+          const grain = Math.sin((y + warp) * 0.22) * 0.5 +
+            Math.sin((y + warp) * 0.51) * 0.22 + Math.sin((y + warp) * 0.067) * 0.5;
+          const noise = random() - 0.5;
+          const plank = y % 192;
+          const seam = plank < 2 ? -17 : 0;
+          const distance = Math.hypot(x - size / 2, y - size / 2) / (size / 2);
+          const wear = Math.max(0, 1 - Math.abs(distance - 0.96) / 0.045) * 7;
+          const tone = grain * 5 + noise * 5 + seam + wear;
+          const offset = (y * size + x) * 4;
+          const colors = [65 + tone, 43 + tone * 0.8, 29 + tone * 0.6];
+          for (let channel = 0; channel < 3; channel++) {
+            images[0].data[offset + channel] = colors[channel];
+            images[1].data[offset + channel] = 145 + grain * 10 + noise * 8 + seam * 2;
+            images[2].data[offset + channel] = 205 + grain * 5 + noise * 9;
+          }
+          images.forEach((image) => { image.data[offset + 3] = 255; });
+        }
+      }
+      contexts.forEach((context, index) => context.putImageData(images[index], 0, 0));
 
-    // Play using the same roll, selection, continue, and bank actions.
-    async function runComputerTurn(generation) {
-      while (await waitForComputerAction(generation)) {
-        state.aiMessage = "Computer is rolling...";
-        updateUI();
-        await doRoll();
-        if (!await waitForComputerAction(generation)) return;
-        if (state.phase !== "select") return;
+      for (let i = 0; i < 160; i++) {
+        const x = random() * size;
+        const y = random() * size;
+        const length = 8 + random() * 75;
+        contexts[0].strokeStyle = i % 3 === 0 ? "rgba(155,122,84,0.19)" : "rgba(20,13,9,0.28)";
+        contexts[1].strokeStyle = "rgba(55,55,55,0.35)";
+        for (const context of [contexts[0], contexts[1]]) {
+          context.lineWidth = 0.4 + random();
+          context.beginPath();
+          context.moveTo(x, y);
+          context.lineTo(x + length, y + (random() - 0.5) * 3);
+          context.stroke();
+        }
+      }
+      for (let i = 0; i < 22; i++) {
+        const x = random() * size;
+        const y = random() * size;
+        const radius = 4 + random() * 16;
+        const stain = contexts[0].createRadialGradient(x, y, 0, x, y, radius);
+        stain.addColorStop(0, "rgba(18,12,8,0.32)");
+        stain.addColorStop(1, "rgba(18,12,8,0)");
+        contexts[0].fillStyle = stain;
+        contexts[0].fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        contexts[1].fillStyle = "rgba(45,45,45,0.22)";
+        contexts[1].beginPath();
+        contexts[1].ellipse(x, y, radius * 0.35, radius * 0.2, 0, 0, Math.PI * 2);
+        contexts[1].fill();
+      }
 
-        const best = bestComputerSelection();
-        if (!best) throw new Error("Computer found no valid scoring selection.");
-        for (const index of best.indices) {
-          if (!await waitForComputerAction(generation)) return;
-          toggleDie(index);
-        }
+      const textures = canvases.map((canvas) => new THREE.CanvasTexture(canvas));
+      textures[0].encoding = THREE.sRGBEncoding;
+      return { map: textures[0], bumpMap: textures[1], roughnessMap: textures[2] };
+    }
 
-        const remaining = state.dice.length - best.indices.length;
-        const turnTotal = state.turnScore + best.score;
-        const shouldBank = state.players[state.current].total + turnTotal >= state.target ||
-          (remaining > 0 && (turnTotal >= 500 || (remaining <= 2 && turnTotal >= 300)));
-        const values = best.indices.map((index) => state.dice[index].value);
-        state.aiMessage = `Computer holds ${values.join(", ")} (+${best.score}) and ${shouldBank ? "banks" : "rolls again"}.`;
-        updateUI();
-        if (!await computerDelay(900, generation) || !await waitForComputerAction(generation)) return;
-        if (shouldBank) {
-          bank();
-          return;
-        }
-        await continueTurn();
-      }
-    }
+    function setupThreeScene() {
+      const container = document.getElementById("scene-container");
+      threeScene = new THREE.Scene();
+      threeScene.background = new THREE.Color("#151411");
+      threeScene.fog = new THREE.Fog("#151411", 12, 27);
+      threeCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      threeCamera.position.set(0, 8.8, 8.5);
+      threeCamera.lookAt(0, 0, 0);
 
-    // Keep the overlay and all controls in sync with the current phase.
-    function updateUI() {
-      const inGame = state.phase !== "start";
-      document.getElementById("start-screen").hidden = inGame;
-      document.getElementById("top-bar").hidden = !inGame;
-      document.getElementById("bottom-bar").hidden = !inGame || state.phase === "won";
-      document.getElementById("end-screen").hidden = state.phase !== "won";
-      document.getElementById("target-score").textContent = state.target;
-      state.players.forEach((player, index) => {
-        const element = document.getElementById(`player-${index}`);
-        element.textContent = `${player.name}: ${player.total}`;
-        element.classList.toggle("active", inGame && index === state.current);
-      });
-      const selection = scoreSelection(state.selected.map((index) => state.dice[index].value));
-      const computerTurn = state.current === 1;
-      const canScore = !computerTurn && !state.animating && state.phase === "select" && selection.valid && selection.score > 0;
-      document.getElementById("turn-score").textContent = state.turnScore;
-      document.getElementById("selection-score").textContent = selection.score;
-      document.getElementById("roll-button").disabled = computerTurn || state.animating || state.phase !== "ready";
-      document.getElementById("continue-button").disabled = !canScore;
-      document.getElementById("bank-button").disabled = !canScore;
-      document.getElementById("new-game-button").disabled = state.animating;
-      document.getElementById("start-button").disabled = state.animating;
-      document.getElementById("play-again-button").disabled = state.animating;
-      document.getElementById("target").disabled = state.animating;
-      const messages = {
-        start: "",
-        ready: `${state.players[state.current].name}: roll the dice.`,
-        rolling: "Rolling...",
-        select: "Select scoring dice.",
-        moving: "Scoring dice...",
-        bust: "BUST!",
-        hot: "HOT DICE!",
-        won: `${state.players[state.current].name} wins!`
-      };
-    document.getElementById("status").textContent =
-        computerTurn && state.aiMessage && !["bust", "hot", "won", "start"].includes(state.phase)
-          ? state.aiMessage : messages[state.phase];
-      document.getElementById("winner").textContent = `${state.players[state.current].name} wins!`;
-    }
+      threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      threeRenderer.outputEncoding = THREE.sRGBEncoding;
+      threeRenderer.shadowMap.enabled = true;
+      threeRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(threeRenderer.domElement);
 
-    // Return to the target selection screen.
-    function newGame() {
-      if (state.animating) return;
-      cancelComputer();
-      state.phase = "start";
-      state.turnScore = 0;
-      state.selected = [];
-      threeDice.forEach((die) => { die.visible = false; });
-      document.getElementById("target").value = "1500";
-      updateUI();
-    }
+      const hemisphere = new THREE.HemisphereLight("#d4c8b3", "#33271f", 0.65);
+      threeScene.add(hemisphere);
 
-    setupThreeScene();
-    threeDice.forEach((die) => { die.visible = false; });
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    threeRenderer.domElement.addEventListener("pointerdown", (event) => {
-      if (state.current === 1 || state.animating || state.phase !== "select") return;
-      const rect = threeRenderer.domElement.getBoundingClientRect();
-      pointer.set(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -((event.clientY - rect.top) / rect.height) * 2 + 1
-      );
-      raycaster.setFromCamera(pointer, threeCamera);
-      const hits = raycaster.intersectObjects(state.dice.map((die) => die.mesh), true);
-      if (hits.length === 0) return;
-      const index = state.dice.findIndex((die) => die.mesh.userData.mesh === hits[0].object);
-      if (index !== -1) toggleDie(index);
-    });
-    document.getElementById("start-button").addEventListener("click", startGame);
-    document.getElementById("roll-button").addEventListener("click", doRoll);
-    document.getElementById("continue-button").addEventListener("click", continueTurn);
-    document.getElementById("bank-button").addEventListener("click", bank);
-    document.getElementById("new-game-button").addEventListener("click", newGame);
-    document.getElementById("play-again-button").addEventListener("click", newGame);
-    updateUI();
-  </script>
+      const candle = new THREE.PointLight("#f4cd94", 1.25, 22, 1.2);
+      candle.position.set(-3.5, 5, 3);
+      candle.castShadow = true;
+      candle.shadow.mapSize.set(1024, 1024);
+      candle.shadow.camera.near = 0.5;
+      candle.shadow.camera.far = 22;
+      candle.shadow.bias = -0.0005;
+      candle.shadow.radius = 3;
+      threeScene.add(candle);
+
+      const rim = new THREE.DirectionalLight("#b7c1c1", 0.3);
+      rim.position.set(4, 5, -5);
+      threeScene.add(rim);
+
+      const table = new THREE.Mesh(
+        new THREE.CircleGeometry(7, 64),
+        new THREE.MeshStandardMaterial({
+          ...createWoodTextures(),
+          roughness: 0.94,
+          bumpScale: 0.06,
+          metalness: 0
+        })
+      );
+      table.rotation.x = -Math.PI / 2;
+      table.position.y = -0.08;
+      table.receiveShadow = true;
+      threeScene.add(table);
+
+      threeDice = Array.from({ length: 6 }, (_, index) => {
+        const die = createDie();
+        const position = getSlotPosition(index, 6);
+        die.position.set(position.x, position.y, position.z);
+        threeScene.add(die);
+        return die;
+      });
+
+      function resize() {
+        const width = Math.max(1, container.clientWidth);
+        const height = Math.max(1, container.clientHeight);
+        threeRenderer.setSize(width, height, false);
+        threeCamera.aspect = width / height;
+        threeCamera.fov = 45;
+        const distance = Math.max(1, 1.35 / threeCamera.aspect);
+        threeCamera.position.set(0, 8.8 * distance, 8.5 * distance);
+        threeCamera.lookAt(0, 0, 0);
+        threeCamera.far = Math.max(100, 50 * distance);
+        threeScene.fog.near = 12 * distance;
+        threeScene.fog.far = 27 * distance;
+        threeCamera.updateProjectionMatrix();
+        const shadowSize = Math.min(window.innerWidth, window.innerHeight) <= 600 ? 512 : 1024;
+        if (candle.shadow.mapSize.x !== shadowSize) {
+          candle.shadow.mapSize.set(shadowSize, shadowSize);
+          if (candle.shadow.map) { candle.shadow.map.dispose(); candle.shadow.map = null; }
+        }
+      }
+
+      window.addEventListener("resize", resize);
+      new ResizeObserver(resize).observe(container);
+      resize();
+
+      let renderFrame = null;
+      function animate() {
+        if (document.hidden) { renderFrame = null; return; }
+        renderFrame = requestAnimationFrame(animate);
+        if (activeRoll) {
+          const roll = activeRoll;
+          const now = performance.now();
+          roll.accumulator += Math.min((now - roll.lastTime) / 1000, 0.1);
+          roll.lastTime = now;
+          while (roll.accumulator >= physicsStep && !roll.done) {
+            stepPhysicsRoll(roll);
+            roll.accumulator -= physicsStep;
+          }
+          if (roll.done) {
+            activeRoll = null;
+            disposePhysicsRoll(roll);
+            roll.resolve(roll);
+          }
+        }
+        threeDice.forEach((die) => {
+          const data = die.userData;
+          const delta = data.selectionTarget - data.selectionOffset;
+          const change = reducedMotion.matches ? delta : delta * 0.2;
+          data.selectionOffset += change;
+          die.position.y += change;
+        });
+        threeRenderer.render(threeScene, threeCamera);
+      }
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden && renderFrame !== null) {
+          cancelAnimationFrame(renderFrame);
+          renderFrame = null;
+        } else if (!document.hidden && renderFrame === null) {
+          if (activeRoll) activeRoll.lastTime = performance.now();
+          animate();
+        }
+      });
+      animate();
+    }
+
+    const computer = {
+      message: "",
+      generation: 0,
+      timer: null,
+      resolve: null
+    };
+
+    function resetDiceVisuals() {
+      threeDice.forEach((mesh, index) => {
+        mesh.visible = true;
+        mesh.scale.setScalar(1);
+        mesh.rotation.set(0, 0, 0);
+        mesh.userData.selectionOffset = 0;
+        mesh.userData.selectionTarget = 0;
+        mesh.userData.outline.visible = false;
+        const slot = getSlotPosition(index, 6);
+        mesh.position.set(slot.x, slot.y, slot.z);
+        mesh.userData.mesh.material.forEach((material) => material.emissive.setHex(0));
+        setDieValueInstant(mesh, 1);
+      });
+    }
+
+    // Show a turn event while input remains blocked.
+    function showFlash(message) {
+      const flash = document.getElementById("flash");
+      flash.textContent = message;
+      flash.classList.remove("show");
+      void flash.offsetWidth;
+      flash.classList.add("show");
+      return new Promise((resolve) => {
+        flashResolve = resolve;
+        flashTimer = setTimeout(() => {
+          flashTimer = null;
+          flashResolve = null;
+          flash.classList.remove("show");
+          resolve(true);
+        }, 1500);
+      });
+    }
+
+    // Begin a new game with the chosen target.
+    function startGame() {
+      if (state.animating) return;
+      cancelComputer();
+      beginGame(state, Number(document.getElementById("target").value));
+      displayedTotals = [0, 0];
+      startTurn();
+    }
+
+    // Reset the turn without changing either player's total.
+    function startTurn() {
+      beginTurn(state);
+      resetDiceVisuals();
+      updateUI();
+      showTurnBanner();
+      if (state.current === 1) {
+        runComputerTurn(computer.generation);
+      }
+    }
+
+    // Roll only the dice still available in this turn.
+    async function doRoll() {
+      const values = beginRoll(state);
+      if (values === null) return;
+      const generation = gameGeneration;
+      updateUI();
+      const result = await rollDicePhysics(state.dice.length, values, state.dice.map((die) => threeDice[die.id]));
+      if (!result || generation !== gameGeneration) return;
+      const lost = state.turnScore;
+      if (!finishRoll(state, values)) {
+        if (!await handleBust(generation, lost)) return;
+      }
+      finishAnimation(state);
+      updateUI();
+    }
+
+    // Select only a die from the current roll.
+    function toggleDie(index) {
+      if (!selectDie(state, index)) return;
+      const die = state.dice[index];
+      const mesh = threeDice[die.id];
+      const selected = state.selected.includes(index);
+      mesh.userData.selectionTarget = selected ? 0.25 : 0;
+      mesh.userData.outline.visible = selected;
+      playSound("select");
+      updateUI();
+    }
+
+    // Animate selected dice to the separate held row.
+    function moveToHeld(die, index) {
+      const mesh = threeDice[die.id];
+      const start = mesh.position.clone();
+      const target = new THREE.Vector3(-2.5 + index, 0.35, 2.4);
+      const startTime = performance.now();
+      const generation = gameGeneration;
+      mesh.userData.selectionTarget = mesh.userData.selectionOffset;
+      mesh.userData.outline.visible = false;
+      mesh.userData.mesh.material.forEach((material) => material.emissive.setHex(0));
+      return new Promise((resolve) => {
+        function frame(now) {
+          if (generation !== gameGeneration) { resolve(false); return; }
+          const progress = reducedMotion.matches ? 1 : Math.min(1, (now - startTime) / 450);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          mesh.position.lerpVectors(start, target, eased);
+          mesh.scale.setScalar(1 - 0.3 * eased);
+          if (progress < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            resolve(true);
+          }
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+
+    // Score the current selection and prepare the remaining dice.
+    async function continueTurn() {
+      const move = scoreAndContinue(state);
+      if (move === null) return;
+      const generation = gameGeneration;
+      updateUI();
+      await Promise.all(move.chosen.map((die, index) => moveToHeld(die, move.heldCount + index)));
+      if (generation !== gameGeneration) return;
+      if (finishMoving(state)) {
+        if (!await handleHotDice(generation)) return;
+      }
+      finishAnimation(state);
+      updateUI();
+    }
+
+    // Bank the current selection and finish the turn.
+    function bank() {
+      const index = state.current;
+      const previous = state.players[index].total;
+      const result = bankSelection(state);
+      if (result === null) return;
+      playSound("bank");
+      animateBankTotal(index, previous, state.players[index].total);
+      if (result.won) {
+        cancelComputer();
+        clearTimeout(bannerTimer);
+        bannerTimer = null;
+        document.getElementById("turn-banner").textContent = "";
+        updateUI();
+      } else {
+        endTurn();
+      }
+    }
+    // Lose the unbanked score and pass the turn after the message.
+    async function handleBust(generation, lost) {
+      playSound("bust");
+      updateUI();
+      if (!await showFlash(`BUST - lost ${lost} points`) || generation !== gameGeneration) return false;
+      endTurn();
+      return true;
+    }
+
+    // Reuse all six dice without losing the accumulated turn score.
+    async function handleHotDice(generation) {
+      playSound("hot");
+      updateUI();
+      if (!await showFlash("HOT DICE!") || generation !== gameGeneration) return false;
+      finishHotDice(state);
+      resetDiceVisuals();
+      return true;
+    }
+
+    // Pass play to the other player.
+    function endTurn() {
+      cancelComputer();
+      switchTurn(state);
+      resetDiceVisuals();
+      updateUI();
+      showTurnBanner();
+      if (state.current === 1) {
+        runComputerTurn(computer.generation);
+      }
+    }
+
+    // Cancel the computer's pending delay and invalidate its turn.
+    function cancelComputer() {
+      computer.generation++;
+      if (computer.timer !== null) {
+        clearTimeout(computer.timer);
+        computer.timer = null;
+        const resolve = computer.resolve;
+        computer.resolve = null;
+        resolve(false);
+      }
+      computer.message = "";
+    }
+
+    function computerDelay(ms, generation) {
+      if (generation !== computer.generation) return Promise.resolve(false);
+      return new Promise((resolve) => {
+        computer.resolve = resolve;
+        computer.timer = setTimeout(() => {
+          computer.timer = null;
+          computer.resolve = null;
+          resolve(generation === computer.generation);
+        }, ms);
+      });
+    }
+
+    async function waitForComputerAction(generation) {
+      while (generation === computer.generation && state.current === 1 && state.animating) {
+        if (!await computerDelay(100, generation)) return false;
+      }
+      return generation === computer.generation && state.current === 1 &&
+        state.phase !== "start" && state.phase !== "won";
+    }
+
+    // Compare every nonempty subset, preferring fewer dice on a score tie.
+    function bestComputerSelection() {
+      let best = null;
+      for (let mask = 1; mask < (1 << state.dice.length); mask++) {
+        const indices = [];
+        for (let index = 0; index < state.dice.length; index++) {
+          if (mask & (1 << index)) indices.push(index);
+        }
+        const result = scoreSelection(indices.map((index) => state.dice[index].value));
+        if (result.valid && (!best || result.score > best.score ||
+            (result.score === best.score && indices.length < best.indices.length))) {
+          best = { indices, score: result.score };
+        }
+      }
+      return best;
+    }
+
+    // Play using the same roll, selection, continue, and bank actions.
+    async function runComputerTurn(generation) {
+      while (await waitForComputerAction(generation)) {
+        computer.message = "Computer is rolling...";
+        updateUI();
+        await doRoll();
+        if (!await waitForComputerAction(generation)) return;
+        if (state.phase !== "select") return;
+
+        const best = bestComputerSelection();
+        if (!best) throw new Error("Computer found no valid scoring selection.");
+        for (const index of best.indices) {
+          if (!await waitForComputerAction(generation)) return;
+          toggleDie(index);
+        }
+
+        const remaining = state.dice.length - best.indices.length;
+        const turnTotal = state.turnScore + best.score;
+        const shouldBank = state.players[state.current].total + turnTotal >= state.target ||
+          (remaining > 0 && (turnTotal >= 500 || (remaining <= 2 && turnTotal >= 300)));
+        const values = best.indices.map((index) => state.dice[index].value);
+        computer.message = `Computer holds ${values.join(", ")} (+${best.score}) and ${shouldBank ? "banks" : "rolls again"}.`;
+        updateUI();
+        if (!await computerDelay(900, generation) || !await waitForComputerAction(generation)) return;
+        if (shouldBank) {
+          bank();
+          return;
+        }
+        await continueTurn();
+      }
+    }
+
+    // Keep the overlay and all controls in sync with the current phase.
+    function updateUI() {
+      const inGame = state.phase !== "start";
+      document.getElementById("game").classList.toggle("playing", inGame && state.phase !== "won");
+      document.getElementById("start-screen").hidden = inGame;
+      document.getElementById("top-bar").hidden = !inGame;
+      document.getElementById("bottom-bar").hidden = !inGame || state.phase === "won";
+      document.getElementById("end-screen").hidden = state.phase !== "won";
+      document.getElementById("target-score").textContent = state.target;
+      state.players.forEach((player, index) => {
+        const element = document.getElementById(`player-${index}`);
+        element.replaceChildren();
+        const name = document.createElement("strong");
+        name.textContent = player.name;
+        const total = document.createElement("span");
+        total.textContent = `TOTAL ${displayedTotals[index]}`;
+        const turn = document.createElement("small");
+        turn.textContent = index === state.current && state.phase !== "won" ? "● Active turn" : "Waiting";
+        element.append(name, total, turn);
+        element.classList.toggle("active", inGame && index === state.current);
+      });
+      const selection = selectionScore(state);
+      const computerTurn = state.current === 1;
+      const canScore = !computerTurn && !state.animating && state.phase === "select" && selection.valid && selection.score > 0;
+      document.getElementById("total-score").textContent = displayedTotals[0];
+      document.getElementById("turn-score").textContent = state.turnScore;
+      document.getElementById("selection-score").textContent = selection.score;
+      document.getElementById("roll-button").disabled = computerTurn || state.animating || state.phase !== "ready";
+      document.getElementById("roll-button").textContent = state.phase === "rolling" ? "Rolling..." : "Roll";
+      document.getElementById("continue-button").disabled = !canScore;
+      document.getElementById("bank-button").disabled = !canScore;
+      document.getElementById("new-game-button").disabled = false;
+      document.getElementById("start-button").disabled = state.animating;
+      document.getElementById("play-again-button").disabled = state.animating;
+      document.getElementById("target").disabled = state.animating;
+      const messages = {
+        start: "",
+        ready: `${state.players[state.current].name}: roll the dice.`,
+        rolling: "Rolling...",
+        select: "Select scoring dice.",
+        moving: "Scoring dice...",
+        bust: "BUST!",
+        hot: "HOT DICE!",
+        won: `${state.players[state.current].name} wins!`
+      };
+    document.getElementById("status").textContent =
+        computerTurn && computer.message && !["bust", "hot", "won", "start"].includes(state.phase)
+          ? computer.message : messages[state.phase];
+      document.getElementById("winner").textContent = `${state.players[state.current].name} wins!`;
+      document.getElementById("final-scores").textContent = state.players.map((player) => `${player.name}: ${player.total}`).join(" · ");
+    }
+
+    // Return to the target selection screen.
+    function newGame() {
+      gameGeneration++;
+      cancelPhysics();
+      clearTimeout(bannerTimer);
+      bannerTimer = null;
+      document.getElementById("turn-banner").textContent = "";
+      if (scoreAnimation !== null) cancelAnimationFrame(scoreAnimation);
+      scoreAnimation = null;
+      displayedTotals = [0, 0];
+      if (flashTimer !== null) {
+        clearTimeout(flashTimer);
+        flashTimer = null;
+        const resolve = flashResolve;
+        flashResolve = null;
+        resolve(false);
+      }
+      document.getElementById("flash").classList.remove("show");
+      cancelComputer();
+      returnToStart(state);
+      finishAnimation(state);
+      threeDice.forEach((die) => { die.visible = false; });
+      document.getElementById("target").value = "1500";
+      updateUI();
+    }
+
+    function requestNewGame() {
+      if (state.phase !== "start" && state.phase !== "won" &&
+          !window.confirm("Start a new game? Current progress will be lost.")) return;
+      newGame();
+    }
+
+    // DEV TOOLS
+    if (new URLSearchParams(location.search).get("debug") === "1") {
+    const devPanel = document.createElement("section");
+    const logicButton = document.createElement("button");
+    const syncButton = document.createElement("button");
+    const testOutput = document.createElement("pre");
+    logicButton.type = syncButton.type = "button";
+    logicButton.textContent = "Run tests";
+    syncButton.textContent = "Sync test x200";
+    testOutput.setAttribute("role", "status");
+    testOutput.style.cssText = "max-height:12em;max-width:85vw;overflow:auto;text-align:left;white-space:pre-wrap;font-size:0.75rem";
+    devPanel.style.marginTop = "10px";
+    devPanel.append(logicButton, syncButton, testOutput);
+    document.getElementById("start-screen").append(devPanel);
+
+    function runTests() {
+      const cases = [
+        { name: "[1]", dice: [1], valid: true, score: 100 },
+        { name: "[5]", dice: [5], valid: true, score: 50 },
+        { name: "[1,5]", dice: [1, 5], valid: true, score: 150 },
+        { name: "[2]", dice: [2], valid: false, score: 0 },
+        { name: "[1,2,3,4,5]", dice: [1, 2, 3, 4, 5], valid: true, score: 500 },
+        { name: "[2,3,4,5,6]", dice: [2, 3, 4, 5, 6], valid: true, score: 750 },
+        { name: "[1,2,3,4,5,6]", dice: [1, 2, 3, 4, 5, 6], valid: true, score: 1500 },
+        { name: "[2,2,3]", dice: [2, 2, 3], valid: false, score: 0 },
+        { name: "[1,4,4,4,5]", dice: [1, 4, 4, 4, 5], valid: true, score: 550 },
+        { name: "[2,4]", dice: [2, 4], valid: false, score: 0 },
+        { name: "hasAnyScoring([2,4])", dice: [2, 4], expected: false, hasAny: true },
+        { name: "hasAnyScoring([2,3,4,6])", dice: [2, 3, 4, 6], expected: false, hasAny: true },
+        { name: "hasAnyScoring([2,2,2])", dice: [2, 2, 2], expected: true, hasAny: true }
+      ];
+
+      const bases = [0, 1000, 200, 300, 400, 500, 600];
+      for (let face = 1; face <= 6; face++) {
+        for (let count = 3; count <= 6; count++) {
+          cases.push({
+            name: `${count} of a kind: ${face}`,
+            dice: Array(count).fill(face),
+            valid: true,
+            score: bases[face] * Math.pow(2, count - 3)
+          });
+        }
+      }
+
+      let failed = 0;
+      const results = [];
+      function check(name, passed) {
+        if (!passed) failed++;
+        results.push(`${passed ? "PASS" : "FAIL"} ${name}`);
+      }
+      for (const test of cases) {
+        let passed;
+        if (test.hasAny) {
+          passed = hasAnyScoring(test.dice) === test.expected;
+        } else {
+          const result = scoreSelection(test.dice);
+          passed = result.valid === test.valid && result.score === test.score;
+        }
+        check(test.name, passed);
+      }
+
+      const game = createGameState();
+      beginGame(game, 1500);
+      beginTurn(game);
+      game.phase = "select";
+      game.dice.forEach((die) => { die.value = 1; });
+      for (let index = 0; index < 6; index++) selectDie(game, index);
+      const move = scoreAndContinue(game);
+      check("Hot Dice: score and hold all six", move !== null &&
+        game.turnScore === 8000 && game.dice.length === 0 && game.heldDice.length === 6);
+      check("Hot Dice: enter hot phase", finishMoving(game) && game.phase === "hot");
+      finishHotDice(game);
+      finishAnimation(game);
+      check("Hot Dice: restore six dice and preserve score", game.phase === "ready" &&
+        game.dice.length === 6 && game.dice.every((die) => die.value === null) &&
+        game.heldDice.length === 0 && game.selected.length === 0 && game.turnScore === 8000);
+
+      const rolled = beginRoll(game);
+      check("Roll: six valid dice", rolled !== null && rolled.length === 6 &&
+        rolled.every((value) => Number.isInteger(value) && value >= 1 && value <= 6) &&
+        game.dice.every((die, index) => die.value === rolled[index]) && game.phase === "rolling");
+      check("Bust: lose unbanked score", !finishRoll(game, [2, 3, 4, 6]) &&
+        game.phase === "bust" && game.turnScore === 0);
+      switchTurn(game);
+      finishAnimation(game);
+      check("Bust: switch to fresh turn", game.current === 1 && game.phase === "ready" &&
+        game.dice.length === 6 && game.players[0].total === 0);
+      game.phase = "select";
+      game.dice[0].value = 1;
+      selectDie(game, 0);
+      const banked = bankSelection(game);
+      check("Bank: add selection to player total", banked !== null && !banked.won &&
+        game.players[1].total === 100 && game.turnScore === 100);
+      switchTurn(game);
+      game.phase = "select";
+      game.dice[0].value = 1;
+      game.players[0].total = 1400;
+      selectDie(game, 0);
+      const winningBank = bankSelection(game);
+      check("Bank: win at target", winningBank !== null && winningBank.won &&
+        game.players[0].total === 1500 && game.phase === "won");
+      testOutput.textContent = `${cases.length + 8 - failed}/${cases.length + 8} tests passed\n${results.join("\n")}`;
+      return failed === 0;
+    }
+
+    async function runSyncTest() {
+      if (state.phase !== "start" || syncButton.disabled) return;
+      const startButton = document.getElementById("start-button");
+      startButton.disabled = logicButton.disabled = syncButton.disabled = true;
+      testOutput.textContent = "Testing 200 rolls...";
+      let escaped = 0;
+      let stuck = 0;
+      let mismatches = 0;
+      try {
+        for (let i = 0; i < 200; i++) {
+          const diceCount = 1 + Math.floor(Math.random() * 6);
+          const targets = rollDice(diceCount);
+          const roll = createPhysicsRoll(threeDice.slice(0, diceCount), targets);
+          while (!roll.done) stepPhysicsRoll(roll);
+          if (roll.escaped) escaped++;
+          if (roll.timedOut) stuck++;
+          mismatches += roll.mismatches;
+          disposePhysicsRoll(roll);
+          if (i % 5 === 4) {
+            testOutput.textContent = `Testing ${i + 1}/200 rolls...`;
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
+        testOutput.textContent = `200 rolls: ${escaped} escaped, ${stuck} stuck, ${mismatches} mismatches`;
+      } finally {
+        startButton.disabled = logicButton.disabled = syncButton.disabled = false;
+        threeDice.forEach((die) => { die.visible = false; });
+      }
+    }
+    logicButton.addEventListener("click", runTests);
+    syncButton.addEventListener("click", runSyncTest);
+    }
+
+    setupThreeScene();
+    const gameArea = document.getElementById("game");
+    const layoutObserver = new ResizeObserver(() => {
+      const top = document.getElementById("top-bar");
+      const bottom = document.getElementById("bottom-bar");
+      gameArea.style.setProperty("--top-space", `${top.offsetHeight + 8}px`);
+      gameArea.style.setProperty("--bottom-space", `${bottom.offsetHeight + 8}px`);
+    });
+    layoutObserver.observe(document.getElementById("top-bar"));
+    layoutObserver.observe(document.getElementById("bottom-bar"));
+    threeDice.forEach((die) => { die.visible = false; });
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    threeRenderer.domElement.addEventListener("pointerdown", (event) => {
+      if (state.current === 1 || state.animating || state.phase !== "select") return;
+      const rect = threeRenderer.domElement.getBoundingClientRect();
+      pointer.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(pointer, threeCamera);
+      const hits = raycaster.intersectObjects(state.dice.map((die) => threeDice[die.id].userData.hitbox), false);
+      if (hits.length === 0) return;
+      const index = state.dice.findIndex((die) => threeDice[die.id].userData.hitbox === hits[0].object);
+      if (index !== -1) toggleDie(index);
+    });
+    document.getElementById("start-button").addEventListener("click", startGame);
+    document.getElementById("roll-button").addEventListener("click", doRoll);
+    document.getElementById("continue-button").addEventListener("click", continueTurn);
+    document.getElementById("bank-button").addEventListener("click", bank);
+    document.getElementById("new-game-button").addEventListener("click", requestNewGame);
+    document.getElementById("play-again-button").addEventListener("click", requestNewGame);
+    document.addEventListener("click", (event) => {
+      unlockAudio();
+      if (event.target.closest("button") && event.target.id !== "mute-button") playSound("button");
+    });
+    document.getElementById("mute-button").addEventListener("click", (event) => {
+      soundEnabled = !soundEnabled;
+      event.currentTarget.textContent = soundEnabled ? "Sound: On" : "Sound: Off";
+      event.currentTarget.setAttribute("aria-label", soundEnabled ? "Mute sound" : "Enable sound");
+      event.currentTarget.setAttribute("aria-pressed", String(soundEnabled));
+      if (soundEnabled) { unlockAudio(); playSound("button"); }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.repeat || event.altKey || event.ctrlKey || event.metaKey ||
+          /^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName) ||
+          event.target.isContentEditable) return;
+      const key = event.key.toLowerCase();
+      if (event.target.tagName === "BUTTON" && (key === " " || key === "enter")) return;
+      const buttons = { " ": "roll-button", enter: "continue-button", b: "bank-button", n: "new-game-button" };
+      if (buttons[key] && state.phase !== "start" && state.phase !== "won") {
+        const button = document.getElementById(buttons[key]);
+        if (!button.disabled) button.click();
+        event.preventDefault();
+      }
+    });
+    updateUI();
+  </script>
 </body>
 </html>
+
+
